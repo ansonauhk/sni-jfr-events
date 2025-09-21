@@ -279,6 +279,89 @@ count by (hostname) (kafka_sni_captures_total)
 sum by (thread) (kafka_sni_captures_total)
 ```
 
+## Capturing Client Certificate Details
+
+### Using Standard JFR Events
+While this project focuses on SNI capture, JFR also provides standard events that capture client certificate details during mTLS (mutual TLS) authentication:
+
+```bash
+# Enable additional JFR events to capture certificate details
+export KAFKA_OPTS="$KAFKA_OPTS -XX:StartFlightRecording=settings=profile,+jdk.X509Certificate#enabled=true,+jdk.X509Validation#enabled=true,+jdk.TLSHandshake#enabled=true"
+```
+
+These standard JFR events capture:
+- **jdk.X509Certificate**: Client certificate details including CN (Common Name), Subject, Issuer
+- **jdk.X509Validation**: Certificate validation results
+- **jdk.TLSHandshake**: Handshake details (but without SNI)
+
+### Combined Configuration for Complete TLS Visibility
+```bash
+# Complete TLS monitoring: SNI + Client Certificates
+export KAFKA_OPTS="-javaagent:/opt/kafka/lib/sni-jfr-agent-1.0.0.jar \
+    -Dsni.jfr.output=/var/log/kafka/sni-capture.jfr \
+    -XX:StartFlightRecording=filename=/var/log/kafka/tls-complete.jfr,settings=profile,\
++jdk.X509Certificate#enabled=true,\
++jdk.X509Validation#enabled=true,\
++jdk.TLSHandshake#enabled=true,\
++kafka.sni.Handshake#enabled=true"
+```
+
+### Analyzing Client Certificate CN with SNI
+```bash
+#!/bin/bash
+# analyze-sni-and-certs.sh
+
+JFR_FILE="${1:-/var/log/kafka/tls-complete.jfr}"
+
+echo "=== Combined SNI and Certificate Analysis ==="
+
+# Extract SNI hostnames
+echo "SNI Hostnames:"
+jfr print --events kafka.sni.Handshake "$JFR_FILE" | \
+    grep "sniHostname" | awk '{print $3}' | sort -u
+
+echo ""
+echo "Client Certificate CNs:"
+# Extract certificate Common Names
+jfr print --events jdk.X509Certificate "$JFR_FILE" | \
+    grep -E "subject.*CN=" | \
+    sed 's/.*CN=\([^,]*\).*/\1/' | sort -u
+
+echo ""
+echo "Correlation:"
+echo "SNI hostname -> Certificate CN mapping helps identify:"
+echo "- Clients using aliases vs actual certificate names"
+echo "- Certificate mismatches with intended hostnames"
+echo "- Multi-domain certificate usage patterns"
+```
+
+### Example: Correlating SNI with Client Certificate
+```java
+// JFR Event Correlation Example
+// This shows how SNI and Certificate events can be correlated
+
+// Custom event (from this project)
+kafka.sni.Handshake {
+  startTime = 10:45:23.456
+  sniHostname = "kafka-client-alias.example.com"  // Client's intended hostname
+  threadName = "kafka-network-thread-1"
+}
+
+// Standard JFR event (provided by JVM)
+jdk.X509Certificate {
+  startTime = 10:45:23.457
+  subject = "CN=kafka-client.example.com, O=Example Corp"  // Actual certificate CN
+  issuer = "CN=Example CA"
+  validFrom = "2024-01-01"
+  validUntil = "2025-01-01"
+}
+
+// The combination shows:
+// - Client connects using alias: kafka-client-alias.example.com (SNI)
+// - But certificate CN is: kafka-client.example.com
+// - This is valid if the certificate has the alias as a SAN entry
+```
+
 ## Analysis Scripts
 
 ### 1. SNI Analysis Script

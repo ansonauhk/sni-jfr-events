@@ -32,6 +32,7 @@ This Java agent provides a **production-ready, zero-overhead** solution by:
 - 📝 **Production Ready**: SLF4J logging, error handling, and performance optimized
 - 🔧 **Configurable**: Debug mode, output file configuration, and more
 - ⚡ **High Performance**: < 1% overhead vs 30-50% with `-Djavax.net.debug`
+- 🔐 **Works with mTLS**: Complements standard JFR X509Certificate events for complete TLS visibility
 
 ## Comparison: SNI JFR Agent vs javax.net.debug
 
@@ -83,6 +84,7 @@ jfr print --events kafka.sni.Handshake kafka-sni.jfr
 
 ## Example Output
 
+### Custom SNI Event (This Project)
 ```
 kafka.sni.Handshake {
   startTime = 10:45:23.456
@@ -94,6 +96,19 @@ kafka.sni.Handshake {
   cipherSuite = "TLS_AES_256_GCM_SHA384"
 }
 ```
+
+### Standard JFR Certificate Event (Built-in)
+```
+jdk.X509Certificate {
+  startTime = 10:45:23.457
+  subject = "CN=kafka-client.example.com, O=Example Corp"
+  issuer = "CN=Example CA, O=Example Corp"
+  algorithm = "RSA"
+  serialNumber = "4F:A3:B2:C1"
+}
+```
+
+**Note**: Combining SNI events with standard X509Certificate events provides complete TLS visibility - you can see both the hostname the client requested (SNI) and the actual certificate presented (CN).
 
 ## Configuration Options
 
