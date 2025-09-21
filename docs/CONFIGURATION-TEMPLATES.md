@@ -1,5 +1,18 @@
 # ⚙️ Configuration Templates & Examples
 
+## Important: Where to Deploy the Agent
+
+⚠️ **The SNI JFR agent should ONLY be deployed on Kafka BROKERS, not on clients!**
+
+- ✅ **Deploy on**: Kafka brokers (servers that accept SSL connections)
+- ❌ **NOT on**: Kafka clients, producers, consumers, or client applications
+
+**Why?**
+- SNI (Server Name Indication) is sent BY clients TO servers during SSL handshake
+- The server (broker) receives and can capture the SNI value
+- Clients don't need the agent - they automatically send SNI based on the hostname they connect to
+- Installing the agent on clients would be unnecessary overhead with no benefit
+
 ## Environment Configuration Templates
 
 ### 1. Production Kafka Broker
@@ -38,23 +51,24 @@ export KAFKA_OPTS="$KAFKA_OPTS -Dsni.jfr.maxSize=50000000"  # 50MB for dev
 export KAFKA_OPTS="$KAFKA_OPTS -XX:StartFlightRecording=duration=60s,filename=dev-startup.jfr"
 ```
 
-### 3. Client Application Template
+### 3. Client Application (No Agent Needed)
 ```bash
 #!/bin/bash
-# client-app-with-sni.sh
+# kafka-client-app.sh
 
 APP_NAME="kafka-client-app"
-LOG_DIR="/var/log/apps/${APP_NAME}"
 
-# Ensure log directory exists
-mkdir -p ${LOG_DIR}
+# NOTE: SNI capture agent is NOT needed on clients!
+# The SNI values sent by clients are captured on the Kafka broker side.
+# Clients just need proper SSL configuration to send SNI.
 
-# Client-side SNI capture
-export JAVA_OPTS="-javaagent:/opt/kafka/lib/sni-jfr-agent-1.0.0.jar"
-export JAVA_OPTS="$JAVA_OPTS -Dsni.jfr.output=${LOG_DIR}/client-sni-$(date +%Y%m%d_%H%M%S).jfr"
-export JAVA_OPTS="$JAVA_OPTS -Dsni.jfr.debug=false"
+# Standard Kafka client configuration
+export JAVA_OPTS="-Xmx1g -Xms1g"
 
-# Start application
+# SSL configuration for client (SNI is sent automatically based on bootstrap server hostname)
+export JAVA_OPTS="$JAVA_OPTS -Dssl.endpoint.identification.algorithm=https"
+
+# Start application - no agent needed
 java $JAVA_OPTS -jar ${APP_NAME}.jar
 ```
 
@@ -85,11 +99,11 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-### 2. Kafka Client Service
+### 2. Kafka Client Service (No Agent Needed)
 ```ini
-# /etc/systemd/system/kafka-client-with-sni.service
+# /etc/systemd/system/kafka-client.service
 [Unit]
-Description=Kafka Client with SNI Monitoring
+Description=Kafka Client Application
 After=network.target
 
 [Service]
@@ -97,8 +111,9 @@ Type=simple
 User=kafka-client
 Group=kafka-client
 WorkingDirectory=/opt/kafka-client
-Environment="JAVA_OPTS=-javaagent:/opt/kafka/lib/sni-jfr-agent-1.0.0.jar"
-Environment="JAVA_OPTS=-Dsni.jfr.output=/var/log/kafka-client/sni-capture.jfr"
+# NOTE: No SNI agent needed on client side!
+# SNI is captured on the broker where this client connects
+Environment="JAVA_OPTS=-Xmx1g -Xms1g"
 ExecStart=/usr/bin/java $JAVA_OPTS -jar kafka-client-app.jar
 Restart=always
 RestartSec=10
@@ -228,24 +243,28 @@ spec:
 ### 1. Spring Boot Configuration
 ```properties
 # application.properties
-# Kafka client with SNI monitoring
+# Standard Kafka client configuration - NO agent needed
 spring.kafka.bootstrap-servers=kafka-cluster.example.com:9093
 spring.kafka.security.protocol=SSL
 spring.kafka.ssl.trust-store-location=classpath:truststore.jks
 spring.kafka.ssl.key-store-location=classpath:keystore.jks
 
-# JVM options for SNI agent
-spring.application.jvm-args=-javaagent:lib/sni-jfr-agent-1.0.0.jar,-Dsni.jfr.output=./client-sni.jfr
+# SNI is automatically sent based on the bootstrap server hostname
+# The broker (with agent) will capture the SNI value
+# No agent configuration needed on client side
 ```
 
-### 2. Java Application JVM Arguments
+### 2. Java Client Application
 ```bash
-# Application startup with SNI monitoring
-java -javaagent:lib/sni-jfr-agent-1.0.0.jar \
-     -Dsni.jfr.output=./app-sni-$(date +%Y%m%d).jfr \
-     -Dsni.jfr.debug=false \
-     -Dsni.jfr.maxSize=50000000 \
-     -jar your-application.jar
+# Standard client startup - NO agent needed
+# SNI capture happens on the Kafka broker side
+
+java -Xmx1g -Xms1g \
+     -Dssl.endpoint.identification.algorithm=https \
+     -jar your-kafka-client-app.jar
+
+# NOTE: The SNI agent should be installed on the Kafka BROKER, not the client
+# Clients automatically send SNI based on the hostname they connect to
 ```
 
 ## Monitoring Configuration

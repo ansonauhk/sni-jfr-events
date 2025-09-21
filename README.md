@@ -64,8 +64,9 @@ mvn clean package
 
 ### Usage
 
-1. **Add the agent to Kafka broker**:
+1. **Add the agent to Kafka broker** (NOT to clients):
 ```bash
+# Install ONLY on Kafka brokers - captures SNI from all connecting clients
 export KAFKA_OPTS="-javaagent:/path/to/sni-jfr-agent-1.0.0.jar"
 bin/kafka-server-start.sh config/server.properties
 ```
