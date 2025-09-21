@@ -80,21 +80,48 @@ kafka.sni.Handshake {
 
 ## Documentation
 
-- [Developer Guide](docs/DEVELOPER-GUIDE.md) - How the project works
-- [Production Deployment](docs/PRODUCTION-DEPLOYMENT.md) - Production setup guide
-- [Monitoring & Troubleshooting](docs/MONITORING-TROUBLESHOOTING.md) - Debug and monitor
-- [Logging Best Practices](docs/LOGGING-BEST-PRACTICES.md) - Logging configuration
+- [Developer Guide](docs/DEVELOPER-GUIDE.md) - Architecture and development details
+- [Production Deployment Guide](docs/PRODUCTION-DEPLOYMENT-GUIDE.md) - Step-by-step deployment instructions
+- [Monitoring & Troubleshooting](docs/MONITORING-TROUBLESHOOTING.md) - Debug and monitor the agent
+- [Logging Best Practices](docs/LOGGING-BEST-PRACTICES.md) - SLF4J and log4j configuration
+- [Configuration Templates](docs/CONFIGURATION-TEMPLATES.md) - Ready-to-use configuration files
 
 ## Project Structure
 
 ```
 sni-jfr-events/
-├── src/main/java/          # Java source code
-│   └── com/kafka/jfr/sni/  # Agent and event classes
-├── docs/                    # Documentation
-├── examples/                # Configuration examples
-├── scripts/                 # Test and utility scripts
-└── pom.xml                 # Maven configuration
+├── .github/
+│   └── workflows/
+│       └── maven-build.yml     # GitHub Actions CI/CD pipeline
+├── src/
+│   └── main/
+│       ├── java/com/kafka/jfr/sni/
+│       │   ├── ProductionSNIAgent.java    # Main production agent
+│       │   ├── SNIHandshakeEvent.java     # Custom JFR event definition
+│       │   ├── SNIProgrammaticAgent.java  # Development/test agent
+│       │   ├── SNIAgent.java              # Simple monitoring agent
+│       │   ├── SNIEventEmitter.java       # Event emission utilities
+│       │   ├── SNIInterceptor.java        # SSL interception logic
+│       │   └── SNIJFRAgent.java           # JFR-specific agent
+│       └── resources/
+│           └── META-INF/
+│               └── MANIFEST.MF            # JAR manifest
+├── docs/                       # Documentation
+│   ├── DEVELOPER-GUIDE.md
+│   ├── PRODUCTION-DEPLOYMENT-GUIDE.md
+│   ├── MONITORING-TROUBLESHOOTING.md
+│   ├── LOGGING-BEST-PRACTICES.md
+│   └── CONFIGURATION-TEMPLATES.md
+├── scripts/                    # Utility scripts
+│   ├── build-and-deploy-sni-jfr.sh
+│   ├── generate-kafka-certs-with-sans.sh
+│   ├── run-kafka-with-sni-jfr.sh
+│   └── run-jfr-sni-test-*.sh
+├── examples/
+│   └── log4j-sni-agent.properties  # Example log4j configuration
+├── pom.xml                     # Maven build configuration
+├── LICENSE                     # MIT License
+└── README.md                   # This file
 ```
 
 ## How It Works
@@ -125,11 +152,16 @@ mvn test
 ## Testing
 
 ```bash
-# Test with Kafka broker
-./scripts/test-with-kafka.sh
+# Run Kafka with SNI JFR agent
+./scripts/run-kafka-with-sni-jfr.sh
 
-# Verify SNI capture
-./scripts/verify-sni-capture.sh
+# Test SNI capture with different scenarios
+./scripts/run-jfr-sni-test.sh
+./scripts/run-jfr-sni-test-with-alias.sh
+./scripts/run-jfr-sni-test-extended.sh
+
+# Generate test certificates with SANs
+./scripts/generate-kafka-certs-with-sans.sh
 ```
 
 ## Contributing
